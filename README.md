@@ -12,6 +12,8 @@ It can operate on a single BAM file or an entire directory of BAMs, generating p
 You can install BALDR from source:
 
 ```bash
-git clone https://github.com/mxa5/baldr.git
+git clone https://github.com/Biosurv/baldr.git
 cd baldr
+conda env create -f environment.yml
+conda activate baldr
 pip install .
