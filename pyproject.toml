@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "baldr"
+version = "0.1.0"
+description = "Read-level lineage assignment using barcode SNVs."
+readme = "README.md"
+authors = [{ name = "Matthew Anderson", email = "matthew.anderson@biosurvinternational.org" }]
+requires-python = ">=3.9"
+dependencies = [
+  "pysam>=0.21,<0.23",
+]
+
+[project.scripts]
+baldr = "baldr.cli:main"
