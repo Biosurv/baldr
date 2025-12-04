@@ -20,4 +20,4 @@ pip install .
 ## Example usage
 
 ```bash
-baldr --bam-dir alignments --barcode-tsv barcodes/barcodes_long.tsv --min-sites 1 --min-margin 2 --outdir out_example --write-bams --write-mix-summary
+baldr --bam-dir alignments --barcode-csv barcodes/barcodes_lins.csv --min-sites 1 --min-margin 2 --outdir out_example --write-bams --write-mix-summary
