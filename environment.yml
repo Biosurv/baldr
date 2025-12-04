@@ -8,3 +8,4 @@ dependencies:
   - samtools
   - pysam=0.22.1
   - tqdm
+  - pandas
