@@ -42,6 +42,7 @@ def parse_args():
     )
 
     p.add_argument("--mapq-min", type=int, default=0, help="Minimum MAPQ to consider a read [0].")
+    
     p.add_argument(
         "--baseq-min",
         type=int,
@@ -51,8 +52,8 @@ def parse_args():
     p.add_argument(
         "--min-sites",
         type=int,
-        default=2,
-        help="Minimum informative sites covered for assignment [2].",
+        default=0,
+        help="Minimum informative sites covered for assignment [0].",
     )
     p.add_argument(
         "--min-margin",
