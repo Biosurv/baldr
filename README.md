@@ -1,6 +1,6 @@
 # BALDR
 
-BALDR assigns individual sequencing reads from an amplicon sequencing protocol to known lineages using lineage-defining single nucleotide variants (SNVs) from a Freyja-style barcode file.  
+BALDR assigns individual sequencing reads from a single amplicon sequencing protocol to known lineages using lineage-defining single nucleotide variants (SNVs) from a Freyja-style barcode file.  
 It can operate on a single BAM file or an entire directory of BAMs, generating per-lineage read sets, BAM/FASTQ subsets, and mixture summaries.
 
 ---
