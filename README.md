@@ -90,21 +90,3 @@ For each read, every covered barcode site contributes `+1` to lineages whose exp
 | `--threads` | `1` | Threads for pysam BAM I/O. |
 
 Run `baldr --help` for the full list.
-
----
-
-## Outputs
-
-In `--bam` mode, files are written to `--outdir`. In `--bam-dir` mode, each sample gets its own subdirectory `<outdir>/<sample>/`.
-
-| File | Always | Contents |
-|---|---|---|
-| `<prefix>.<lineage>.names.txt` | yes | Read names assigned to that lineage. |
-| `<prefix>.ambiguous.names.txt` | if any | Read names that failed assignment. |
-| `<prefix>.summary.txt` | yes | Counts: total/processed/assigned/ambiguous reads, skip reasons, per-lineage read counts. |
-| `<prefix>.<lineage>.bam` (+ `.bai`) | `--write-bams` | Per-lineage BAM, indexed. |
-| `<prefix>.<lineage>.fastq` | `--write-fastq` | Per-lineage FASTQ. |
-| `<prefix>.ambiguous.bam` / `.fastq` | `--write-unassigned` | Same, for ambiguous reads. |
-| `<prefix>.mix_summary.tsv` | `--write-mix-summary` | Per-lineage counts and mixture estimate. Columns: `lineage`, `reads`, `mix_weight`, `frac_assigned`, `frac_total`. |
-
-`reads`, `frac_assigned`, and `frac_total` are hard counts in both modes. `mix_weight` is the EM mixture weight `π[lin]` (sums to ~1 across lineages, includes evidence from sub-threshold reads).
