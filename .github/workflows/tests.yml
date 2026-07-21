@@ -1,0 +1,39 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    # pysam builds on Linux and macOS only, so there is no Windows runner here.
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The declared floor in pyproject.toml and the version pinned in
+        # environment.yml. pysam wheel availability genuinely differs across
+        # this range, so both ends are worth testing.
+        python-version: ["3.9", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install baldr
+        # A clean install from the declared metadata alone. If a runtime import
+        # is missing from pyproject.toml dependencies, this is where it surfaces
+        # rather than in someone's already-populated conda environment.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+
+      - name: Install test dependencies
+        run: python -m pip install pytest
+
+      - name: Run tests
+        run: python -m pytest tests/ -v

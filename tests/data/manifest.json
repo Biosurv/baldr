@@ -1,0 +1,235 @@
+{
+  "seed": 42,
+  "reference": "reference.fasta",
+  "reference_name": "AMPLICON_REF",
+  "reference_length": 600,
+  "default_barcode": "barcode.csv",
+  "edge_barcode": "barcode_edge.csv",
+  "base_quality": 30,
+  "error_rate": 0.005,
+  "marker_positions": [
+    30,
+    70,
+    110,
+    150,
+    190,
+    230,
+    270,
+    310,
+    350,
+    385
+  ],
+  "lineage_markers": {
+    "A.1": [
+      30,
+      70,
+      110,
+      150,
+      190
+    ],
+    "B.1": [
+      150,
+      190,
+      230,
+      270,
+      310
+    ],
+    "C.1": [
+      270,
+      310,
+      350,
+      385
+    ]
+  },
+  "unmodelled_markers": {
+    "D.1": [
+      30,
+      190,
+      350
+    ]
+  },
+  "truth_tag": "XL",
+  "samples": [
+    {
+      "bam": "pure_A.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 300,
+      "read_counts": {
+        "A.1": 300
+      },
+      "truth": {
+        "A.1": 1.0
+      },
+      "error_rate": 0.005,
+      "paired": false,
+      "recoverable": true,
+      "description": "Single lineage, no mixture. Sanity anchor."
+    },
+    {
+      "bam": "mix_75_25.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 400,
+      "read_counts": {
+        "A.1": 300,
+        "B.1": 100
+      },
+      "truth": {
+        "A.1": 0.75,
+        "B.1": 0.25
+      },
+      "error_rate": 0.005,
+      "paired": false,
+      "recoverable": true,
+      "description": "Two-lineage mixture at 75/25."
+    },
+    {
+      "bam": "mix_50_50.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 400,
+      "read_counts": {
+        "A.1": 200,
+        "B.1": 200
+      },
+      "truth": {
+        "A.1": 0.5,
+        "B.1": 0.5
+      },
+      "error_rate": 0.005,
+      "paired": false,
+      "recoverable": true,
+      "description": "Two-lineage mixture at 50/50."
+    },
+    {
+      "bam": "mix_95_05.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 1200,
+      "read_counts": {
+        "A.1": 1140,
+        "B.1": 60
+      },
+      "truth": {
+        "A.1": 0.95,
+        "B.1": 0.05
+      },
+      "error_rate": 0.005,
+      "paired": false,
+      "recoverable": true,
+      "description": "Skewed mixture. The minor lineage is where EM's prior feedback would push reads toward the dominant lineage."
+    },
+    {
+      "bam": "mix_three.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 1000,
+      "read_counts": {
+        "A.1": 500,
+        "B.1": 300,
+        "C.1": 200
+      },
+      "truth": {
+        "A.1": 0.5,
+        "B.1": 0.3,
+        "C.1": 0.2
+      },
+      "error_rate": 0.005,
+      "paired": false,
+      "recoverable": true,
+      "description": "Three-lineage mixture."
+    },
+    {
+      "bam": "mix_noisy.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 800,
+      "read_counts": {
+        "A.1": 480,
+        "B.1": 320
+      },
+      "truth": {
+        "A.1": 0.6,
+        "B.1": 0.4
+      },
+      "error_rate": 0.08,
+      "paired": false,
+      "recoverable": true,
+      "description": "Same shape as the clean mixtures but at a 16x higher error rate, so assignment is no longer trivially perfect. Gives accuracy and ambiguity rates that can actually regress."
+    },
+    {
+      "bam": "unmodelled.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 500,
+      "read_counts": {
+        "A.1": 350,
+        "D.1": 150
+      },
+      "truth": {
+        "A.1": 0.7,
+        "D.1": 0.3
+      },
+      "error_rate": 0.005,
+      "paired": false,
+      "recoverable": false,
+      "description": "30% of reads come from D.1, which is absent from barcode.csv. Measures how much an unmodelled lineage inflates listed lineages."
+    },
+    {
+      "bam": "short_reads.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 600,
+      "read_counts": {
+        "A.1": 300,
+        "B.1": 300
+      },
+      "truth": {
+        "A.1": 0.5,
+        "B.1": 0.5
+      },
+      "error_rate": 0.005,
+      "read_length": 60,
+      "paired": false,
+      "recoverable": true,
+      "description": "60 bp reads scattered across the marker region. Most cover only one or two markers, many of which are shared between lineages, so assignment is genuinely uncertain."
+    },
+    {
+      "bam": "no_sites.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 100,
+      "read_counts": {},
+      "truth": {},
+      "paired": false,
+      "recoverable": false,
+      "description": "Reads aligned outside the marker region entirely. Every read should be unassignable for lack of evidence."
+    },
+    {
+      "bam": "paired.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 400,
+      "n_fragments": 200,
+      "read_counts": {
+        "A.1": 120,
+        "C.1": 80
+      },
+      "truth": {
+        "A.1": 0.6,
+        "C.1": 0.4
+      },
+      "paired": true,
+      "recoverable": true,
+      "description": "Paired fragments whose mates cover disjoint marker sets. Both mates share a query name."
+    },
+    {
+      "bam": "paired_split.bam",
+      "barcode": "barcode.csv",
+      "n_reads": 200,
+      "n_fragments": 100,
+      "read_counts": {
+        "A.1": 50,
+        "C.1": 50
+      },
+      "truth": {
+        "A.1": 0.5,
+        "C.1": 0.5
+      },
+      "paired": true,
+      "recoverable": true,
+      "description": "Paired fragments where read 1 spans every marker and read 2 lands in the marker-free tail. Every fragment is identifiable, but the two mates carry very different evidence under a shared query name."
+    }
+  ]
+}
