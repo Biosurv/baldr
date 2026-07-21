@@ -95,9 +95,6 @@ desktop.ini
 *.mix_summary.tsv
 *.names.txt
 
-# But keep example/test data if stored in tests/data/
-!tests/data/**
-
 # -----------------------------------------------------------------------------
 # Local config or credentials
 # -----------------------------------------------------------------------------
@@ -130,3 +127,11 @@ results/
 output/
 out/
 assign_out/
+
+# -----------------------------------------------------------------------------
+# Committed test fixtures
+# -----------------------------------------------------------------------------
+# Must stay at the end of this file. Later rules override earlier ones, so a
+# negation placed higher up gets undone by any broad pattern below it (*.json
+# and *.txt in particular both match files under tests/data/).
+!tests/data/**
