@@ -1,7 +1,8 @@
 import os
 import math
-from collections import Counter
+from collections import Counter, defaultdict
 
+import numpy as np
 import pysam
 
 try:
@@ -53,6 +54,147 @@ def read_loglik_for_lineage(covered_obs, qual_by_pos, lineage_sites, lin, pos_to
     return ll
 
 
+# per quality log-prob tables
+_LOG_MATCH = [math.log(1.0 - phred_to_err(q)) for q in range(256)]
+_LOG_MISMATCH = [math.log(phred_to_err(q) / 3.0) for q in range(256)]
+_LOG_AMBIG = math.log(0.5)
+
+
+def build_pos_alt_groups(site_to_lineage_alt, lin_index):
+    # Index the barcode by position, then by ALT base.
+    # Every lineage carrying the same ALT at the same position takes the same
+    # likelihood correction so they can all be updated by one vectorised op.
+    
+    groups = {}
+    for pos, lin2alt in site_to_lineage_alt.items():
+        by_alt = defaultdict(list)
+        for lin, alt in lin2alt.items():
+            i = lin_index.get(lin)
+            if i is not None:
+                by_alt[alt].append(i)
+
+        entries = []
+        for alt, idxs in by_alt.items():
+            if len(idxs) == 1:
+                entries.append((alt, idxs[0]))
+                
+            else:
+                idxs.sort()
+                entries.append((alt, np.array(idxs, dtype=np.intp)))
+        groups[pos] = entries
+    return groups
+
+
+def fill_read_loglik(row, covered_obs, qual_by_pos, pos_to_ref, pos_alt_groups):
+    row.fill(0.0)
+    ll_ref = 0.0
+
+    for pos, b in covered_obs.items():
+        ref = pos_to_ref.get(pos)
+        if ref is None:
+            continue
+
+        q = qual_by_pos.get(pos, 30)
+        t_match = _LOG_MATCH[q]
+        t_miss = _LOG_MISMATCH[q] if b in "ACGT" else _LOG_AMBIG
+
+        t_ref = t_match if b == ref else t_miss
+        ll_ref += t_ref
+
+        for alt, idx in pos_alt_groups.get(pos, ()):
+            t_alt = t_match if b == alt else t_miss
+            if t_alt != t_ref:
+                row[idx] += t_alt - t_ref
+
+    row += ll_ref
+
+
+class LogLikMatrix:
+    # The log-lik matrix, grown in fixed blocks
+
+    def __init__(self, n_lineages, block_bytes=16 << 20):
+        self.n_lineages = n_lineages
+        self.n_rows = 0
+        rows = block_bytes // max(1, n_lineages * 8)
+        self._block_rows = int(min(4096, max(256, rows)))
+        self._blocks = []
+        self._fill = self._block_rows
+
+    def next_row(self):
+        if self._fill >= self._block_rows:
+            self._blocks.append(
+                np.empty((self._block_rows, self.n_lineages), dtype=np.float64)
+            )
+            self._fill = 0
+        row = self._blocks[-1][self._fill]
+        self._fill += 1
+        self.n_rows += 1
+        return row
+
+    def iter_blocks(self):
+        start = 0
+        last = len(self._blocks) - 1
+        for i, block in enumerate(self._blocks):
+            n = self._fill if i == last else self._block_rows
+            yield start, block[:n]
+            start += n
+
+
+def _log_pi(pi):
+    # Mirrors the original scalar guard
+    return np.where(pi > 0, np.log(np.where(pi > 0, pi, 1.0)), math.log(1e-300))
+
+
+def _posterior(block, log_pi):
+
+    terms = block + log_pi
+    m = terms.max(axis=1, keepdims=True)
+    shifted = terms - m
+    np.exp(shifted, out=shifted)
+    denom = m + np.log(shifted.sum(axis=1, keepdims=True))
+    terms -= denom
+    np.exp(terms, out=terms)
+    return terms
+
+
+def run_em(ll_matrix, max_iters, tol, post_min):
+    # fit mixture weights, then hard-assign reads on the posterior cutoff.
+
+    n_reads = ll_matrix.n_rows
+    n_lin = ll_matrix.n_lineages
+
+    pi = np.full(n_lin, 1.0 / n_lin, dtype=np.float64)
+    pi_estep = None  # the pi that the most recent E-step actually used
+
+    for _ in range(max_iters):
+        log_pi = _log_pi(pi)
+        pi_new = np.zeros(n_lin, dtype=np.float64)
+        for _start, block in ll_matrix.iter_blocks():
+            pi_new += _posterior(block, log_pi).sum(axis=0)
+        pi_new /= n_reads
+
+        pi_estep = pi
+        delta = np.abs(pi_new - pi).sum()
+        pi = pi_new
+        if delta < tol:
+            break
+
+    best = np.full(n_reads, -1, dtype=np.int64)
+    if pi_estep is not None:
+
+        log_pi = _log_pi(pi_estep)
+        for start, block in ll_matrix.iter_blocks():
+            hit = _posterior(block, log_pi) >= post_min
+            best[start:start + block.shape[0]] = np.where(
+                hit.any(axis=1), hit.argmax(axis=1), -1
+            )
+    elif post_min <= 0.0:
+
+        best[:] = 0
+
+    return pi, best
+
+
 def assign_reads_on_bam(
     bam_path,
     outdir,
@@ -71,9 +213,15 @@ def assign_reads_on_bam(
     contigs = list(ref_lengths.keys())
 
     # Init counters/storage
+    lineage_order = list(lineage_sites.keys())
+    lin_index = {lin: i for i, lin in enumerate(lineage_order)}
+    pos_alt_groups = (
+        build_pos_alt_groups(site_to_lineage_alt, lin_index) if args.use_em else {}
+    )
+
     read_names = []
     per_read_cov_sites = []
-    per_read_ll = []
+    per_read_ll = LogLikMatrix(len(lineage_order))
     names_per_lineage = {lin: set() for lin in lineage_sites.keys()}
     ambiguous_names = set()
 
@@ -141,19 +289,15 @@ def assign_reads_on_bam(
                 if len(covered_obs) < args.min_sites:
                     ambiguous_names.add(read.query_name)
                     continue
-                # log-likelihood per lineage
-                ll_dict = {}
-                for lin in lineage_sites.keys():
-                    ll = read_loglik_for_lineage(
-                        covered_obs, qual_by_pos, lineage_sites, lin, pos_to_ref
-                    )
-                    ll_dict[lin] = ll
-                per_read_ll.append(ll_dict)
-                cov_per_lin = Counter()
-                for pos1 in covered_obs:
-                    for lin in site_to_lineage_alt.get(pos1, {}):
-                        cov_per_lin[lin] += 1
-                per_read_cov_sites.append(cov_per_lin)
+                # log-likelihood for every lineage, written straight into the
+                # matrix so no per-read dict is ever built
+                fill_read_loglik(
+                    per_read_ll.next_row(),
+                    covered_obs,
+                    qual_by_pos,
+                    pos_to_ref,
+                    pos_alt_groups,
+                )
                 read_names.append(read.query_name)
             else:
                 # voting + margin approach
@@ -208,53 +352,21 @@ def assign_reads_on_bam(
         pbar.close()
 
     # EM mixture & soft assignment
-    gamma = None
     pi = None
     if args.use_em and read_names:
-        L = list(lineage_sites.keys())
-        R = len(per_read_ll)
-
-        # uniform mixture
-        pi = {lin: 1.0 / len(L) for lin in L}
-        gamma = [{lin: 0.0 for lin in L} for _ in range(R)]
-
-        # EM loop
-        log_floor = math.log(1e-300)
-        for _ in range(args.em_max_iters):
-            for r in range(R):
-                ll = per_read_ll[r]
-                terms = [
-                    (math.log(pi[lin]) if pi[lin] > 0 else log_floor)
-                    + ll.get(lin, -1e9)
-                    for lin in L
-                ]
-                denom = logsumexp(terms)
-                for i, lin in enumerate(L):
-                    gamma[r][lin] = math.exp(terms[i] - denom)
-
-            pi_new = {lin: 0.0 for lin in L}
-            for r in range(R):
-                for lin in L:
-                    pi_new[lin] += gamma[r][lin]
-            for lin in L:
-                pi_new[lin] /= R
-
-            delta = sum(abs(pi_new[lin] - pi[lin]) for lin in L)
-            pi = pi_new
-            if delta < args.em_tol:
-                break
+        pi_arr, best = run_em(
+            per_read_ll, args.em_max_iters, args.em_tol, args.post_min
+        )
+        pi = {lin: float(pi_arr[i]) for i, lin in enumerate(lineage_order)}
 
         # hard membership sets using posterior cutoff
         name_to_idx = {n: i for i, n in enumerate(read_names)}
         names_per_lineage = {lin: set() for lin in lineage_sites.keys()}
         for n, idx in name_to_idx.items():
-            assigned = False
-            for lin in L:
-                if gamma[idx][lin] >= args.post_min:
-                    names_per_lineage[lin].add(n)
-                    assigned = True
-                    break
-            if not assigned:
+            j = int(best[idx])
+            if j >= 0:
+                names_per_lineage[lineage_order[j]].add(n)
+            else:
                 ambiguous_names.add(n)
 
     for lin, names in names_per_lineage.items():
