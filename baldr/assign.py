@@ -23,12 +23,7 @@ def iter_read_aligned_pairs(read, want_positions_set):
 def phred_to_err(q):
     return min(0.1, max(10 ** (-q / 10.0), 1e-6))
 
-
-def logsumexp(vals):
-    m = max(vals)
-    return m + math.log(sum(math.exp(v - m) for v in vals))
-
-
+# no longer called, left for now for future comparison
 def read_loglik_for_lineage(covered_obs, qual_by_pos, lineage_sites, lin, pos_to_ref):
     ll = 0.0
     lin_sites = lineage_sites[lin]
