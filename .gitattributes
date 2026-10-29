@@ -1,0 +1,6 @@
+# Store and check out text files with LF endings on every platform, so
+# Windows, WSL and CI all see the same bytes.
+* text=auto eol=lf
+
+*.bam binary
+*.bai binary

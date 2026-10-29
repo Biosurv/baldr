@@ -47,24 +47,8 @@ def parse_args():
         type=int,
         default=0,
         help=(
-            "Minimum informative sites covered for assignment [0]. In EM mode this "
-            "is a per-read floor (number of barcode positions covered). In voting "
-            "mode it is per-lineage (number of the winning lineage's defining "
-            "sites covered)."
-        ),
-    )
-    p.add_argument(
-        "--min-margin",
-        type=int,
-        default=1,
-        help="(Voting mode only) Minimum score margin over second-best lineage to assign [1].",
-    )
-    p.add_argument(
-        "--ignore-ref-mismatch",
-        action="store_true",
-        help=(
-            "If set, do not subtract a vote when the read shows the reference base "
-            "(treat as 0, not -1)."
+            "Minimum informative sites covered for assignment [0]. This is a "
+            "per-read floor (number of barcode positions covered)."
         ),
     )
     p.add_argument(
@@ -74,18 +58,10 @@ def parse_args():
     )
 
     p.add_argument(
-        "--voting",
-        action="store_true",
-        help=(
-            "Use voting-based assignment instead of EM. Voting cannot detect "
-            "reference-equivalent lineages (rows that are all 0 in the barcode)."
-        ),
-    )
-    p.add_argument(
         "--post-min",
         type=float,
         default=0.90,
-        help="Posterior threshold to assign a read to a lineage in EM mode [0.90].",
+        help="Posterior threshold to assign a read to a lineage [0.90].",
     )
     p.add_argument(
         "--em-max-iters",
@@ -147,29 +123,10 @@ def parse_args():
 
 def main():
     args = parse_args()
-    args.use_em = not args.voting
 
     lineage_sites, site_to_lineage_alt, all_positions, pos_to_ref = read_barcode_tsv(
         args.barcode_csv, args.lineage_include
     )
-
-    if args.voting:
-        for lin, sites in sorted(lineage_sites.items()):
-            n_sites = len(sites)
-            if 0 < n_sites < args.min_sites:
-                print(
-                    f"[WARN] Lineage '{lin}' has only {n_sites} defining site(s), "
-                    f"fewer than --min-sites {args.min_sites}. "
-                    f"Effective minimum capped at {n_sites} for this lineage.",
-                    file=sys.stderr,
-                )
-            elif n_sites == 0:
-                print(
-                    f"[WARN] Lineage '{lin}' has no defining mutations and is "
-                    f"undetectable in voting mode. Use EM (default) to detect "
-                    f"reference-equivalent lineages.",
-                    file=sys.stderr,
-                )
 
     if args.bam:
         bam_path = args.bam

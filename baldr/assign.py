@@ -1,6 +1,6 @@
 import os
 import math
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 import numpy as np
 import pysam
@@ -210,12 +210,9 @@ def assign_reads_on_bam(
     # Init counters/storage
     lineage_order = list(lineage_sites.keys())
     lin_index = {lin: i for i, lin in enumerate(lineage_order)}
-    pos_alt_groups = (
-        build_pos_alt_groups(site_to_lineage_alt, lin_index) if args.use_em else {}
-    )
+    pos_alt_groups = build_pos_alt_groups(site_to_lineage_alt, lin_index)
 
     read_names = []
-    per_read_cov_sites = []
     per_read_ll = LogLikMatrix(len(lineage_order))
     names_per_lineage = {lin: set() for lin in lineage_sites.keys()}
     ambiguous_names = set()
@@ -227,7 +224,6 @@ def assign_reads_on_bam(
     sec_count = 0
 
     baseq_min = args.baseq_min
-    ignore_ref_mismatch = args.ignore_ref_mismatch
     fetch_targets = contigs
 
     # prog bar
@@ -236,7 +232,7 @@ def assign_reads_on_bam(
     if tqdm is not None:
         pbar = tqdm(total=total_mapped, desc=f"{prefix}", unit="reads", leave=False)
 
-    # compute votes or log-likelihoods
+    # compute per-read log-likelihoods
     for chrom in fetch_targets:
         for read in bam.fetch(chrom):
             total_reads += 1
@@ -278,69 +274,21 @@ def assign_reads_on_bam(
                 ambiguous_names.add(read.query_name)
                 continue
 
-            if args.use_em:
-                # per-read evidence floor (uniform across lineages, including
-                # reference-equivalent rows)
-                if len(covered_obs) < args.min_sites:
-                    ambiguous_names.add(read.query_name)
-                    continue
-                # log-likelihood for every lineage, written straight into the
-                # matrix so no per-read dict is ever built
-                fill_read_loglik(
-                    per_read_ll.next_row(),
-                    covered_obs,
-                    qual_by_pos,
-                    pos_to_ref,
-                    pos_alt_groups,
-                )
-                read_names.append(read.query_name)
-            else:
-                # voting + margin approach
-                votes = Counter()
-                covered_sites_per_lin = Counter()
-
-                for pos1, b in covered_obs.items():
-                    ref_base = pos_to_ref.get(pos1, None)
-                    lin2alt = site_to_lineage_alt.get(pos1, {})
-                    for lin, alt in lin2alt.items():
-                        covered_sites_per_lin[lin] += 1
-                        if b == alt:
-                            votes[lin] += 1
-                        elif (
-                            not ignore_ref_mismatch
-                            and ref_base
-                            and b == ref_base
-                        ):
-                            votes[lin] -= 1
-                        else:
-                            pass
-
-                if not votes:
-                    ambiguous_names.add(read.query_name)
-                    continue
-
-                best_lin, best_score = None, -10**9
-                second_best = -10**9
-                for lin in lineage_sites.keys():
-                    sc = votes.get(lin, 0)
-                    if sc > best_score:
-                        second_best = best_score
-                        best_score = sc
-                        best_lin = lin
-                    elif sc > second_best:
-                        second_best = sc
-
-                cov_best = covered_sites_per_lin.get(best_lin, 0)
-                per_read_cov_sites.append(cov_best)
-
-                effective_min = min(args.min_sites, len(lineage_sites[best_lin]))
-                if (
-                    cov_best >= effective_min
-                    and best_score >= second_best + args.min_margin
-                ):
-                    names_per_lineage[best_lin].add(read.query_name)
-                else:
-                    ambiguous_names.add(read.query_name)
+            # per-read evidence floor (uniform across lineages, including
+            # reference-equivalent rows)
+            if len(covered_obs) < args.min_sites:
+                ambiguous_names.add(read.query_name)
+                continue
+            # log-likelihood for every lineage, written straight into the
+            # matrix so no per-read dict is ever built
+            fill_read_loglik(
+                per_read_ll.next_row(),
+                covered_obs,
+                qual_by_pos,
+                pos_to_ref,
+                pos_alt_groups,
+            )
+            read_names.append(read.query_name)
 
     bam.close()
     if pbar is not None:
@@ -348,7 +296,7 @@ def assign_reads_on_bam(
 
     # EM mixture & soft assignment
     pi = None
-    if args.use_em and read_names:
+    if read_names:
         pi_arr, best = run_em(
             per_read_ll, args.em_max_iters, args.em_tol, args.post_min
         )
@@ -356,7 +304,6 @@ def assign_reads_on_bam(
 
         # hard membership sets using posterior cutoff
         name_to_idx = {n: i for i, n in enumerate(read_names)}
-        names_per_lineage = {lin: set() for lin in lineage_sites.keys()}
         for n, idx in name_to_idx.items():
             j = int(best[idx])
             if j >= 0:
