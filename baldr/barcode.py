@@ -88,8 +88,7 @@ def read_barcode_tsv(path, lineage_include=None):
     if empty_lineages:
         print(
             f"[INFO] {len(empty_lineages)} lineage(s) have no defining mutations "
-            f"in the barcode (reference-equivalent). These are detectable in EM "
-            f"mode only.",
+            f"in the barcode (reference-equivalent).",
             file=sys.stderr,
         )
 

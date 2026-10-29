@@ -1,4 +1,4 @@
-"""Tests for read assignment and mixture estimation in EM mode."""
+"""Tests for read assignment and mixture estimation."""
 
 import json
 import os

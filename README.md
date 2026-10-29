@@ -31,7 +31,7 @@ baldr \
   --write-mix-summary
 ```
 
-This runs the default EM mode on every `*.bam` in `alignments/`, writing per-lineage outputs and a mixture summary into `out_example/<sample>/`.
+This runs assignment on every `*.bam` in `alignments/`, writing per-lineage outputs and a mixture summary into `out_example/<sample>/`.
 
 ---
 
@@ -54,15 +54,11 @@ Indexed BAMs aligned to the same single-contig reference the barcode positions r
 
 ---
 
-## Modes
-
-### EM (default)
+## Method
 
 Each read's barcode-position observations are scored against every lineage as a log-likelihood (using base qualities for per-base error). An EM loop estimates mixture weights `π`, posteriors `γ` are computed per read, and a read is hard-assigned to a lineage when `γ ≥ --post-min` (default `0.90`), otherwise marked ambiguous.
 
-### Voting (`--voting`)
-
-For each read, every covered barcode site contributes `+1` to lineages whose expected ALT matches the read base, and `-1` (unless `--ignore-ref-mismatch`) to lineages whose expected ALT does not. The lineage with the highest score wins if it beats the runner-up by at least `--min-margin`.
+Lineages with no defining mutations (rows that are all `0` in the barcode) are reference-equivalent and are scored like any other lineage.
 
 ---
 
@@ -76,13 +72,10 @@ For each read, every covered barcode site contributes `+1` to lineages whose exp
 | `--mapq-min` | `0` | Minimum MAPQ to consider a read. |
 | `--baseq-min` | `7` | Minimum base quality to count a barcode site. |
 | `--allow-secondary` | off | Include secondary/supplementary alignments. |
-| `--voting` | off | Use voting instead of EM. |
 | `--post-min` | `0.90` | EM posterior threshold for hard assignment. |
 | `--em-max-iters` | `50` | EM iteration cap. |
 | `--em-tol` | `1e-4` | EM convergence tolerance on `π`. |
-| `--min-sites` | `0` | EM: per-read floor on barcode positions covered. Voting: per-lineage floor on the winning lineage's defining sites covered. |
-| `--min-margin` | `1` | Voting only. Score margin over second-best lineage. |
-| `--ignore-ref-mismatch` | off | Voting only. Treat reference-base reads as 0 instead of −1. |
+| `--min-sites` | `0` | Per-read floor on barcode positions covered. |
 | `--write-bams` | off | Per-lineage BAMs (indexed). |
 | `--write-fastq` | off | Per-lineage FASTQs. |
 | `--write-unassigned` | off | Also emit BAM/FASTQ for ambiguous reads. |
